@@ -91,7 +91,7 @@ export default function App() {
   const [routeDestination, setRouteDestination] = useState(null);
   const [routeDestinationText, setRouteDestinationText] = useState("");
   const [emergencyMessage, setEmergencyMessage] = useState("");
-  const [recipientEmail, setRecipientEmail] = useState("");
+  const [recipientEmail, setRecipientEmail] = useState("durgasripeetha@gmail.com");
   const [emergencyLocation, setEmergencyLocation] = useState("");
   const [userPosition, setUserPosition] = useState(null);
   const [locationStatus, setLocationStatus] = useState("Location is off. Share your location to show it on the map.");
