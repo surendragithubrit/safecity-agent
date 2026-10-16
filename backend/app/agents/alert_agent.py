@@ -2,6 +2,7 @@ import asyncio
 import logging
 import smtplib
 
+import httpx
 from fastapi import HTTPException
 
 from app.services.database import save_alert, update_alert_status
@@ -49,12 +50,12 @@ async def prepare_alert(data: dict):
     if automatic_trigger and not email_is_configured():
         raise HTTPException(
             status_code=503,
-            detail="Automatic email is not configured. Add SMTP_USERNAME and SMTP_APP_PASSWORD to backend/.env, then restart the backend.",
+            detail="Automatic email is not configured. Configure Brevo API settings or SMTP settings on the backend.",
         )
     if automatic_trigger and not is_allowed_recipient(data["recipient_email"]):
         raise HTTPException(
             status_code=403,
-            detail="This email address is not in ALERT_ALLOWED_RECIPIENTS in backend/.env.",
+            detail="This email address is not in ALERT_ALLOWED_RECIPIENTS on the backend.",
         )
 
     alert_id = save_alert(
@@ -71,12 +72,12 @@ async def prepare_alert(data: dict):
         except HTTPException:
             update_alert_status(alert_id, "SEND_FAILED")
             raise
-        except (OSError, smtplib.SMTPException):
+        except (OSError, smtplib.SMTPException, httpx.HTTPError):
             update_alert_status(alert_id, "SEND_FAILED")
             logger.exception("Automatic SafeCity alert email delivery failed.")
             raise HTTPException(
                 status_code=502,
-                detail="The alert was recorded, but email delivery failed. Check the Gmail SMTP settings and backend logs.",
+                detail="The alert was recorded, but email delivery failed. Check the email provider settings and backend logs.",
             ) from None
         update_alert_status(alert_id, "SENT")
 

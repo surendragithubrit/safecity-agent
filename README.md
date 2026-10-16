@@ -26,9 +26,9 @@ SafeCity Agent combines:
 
 The login form is currently a visual demo only: it accepts any valid email and non-empty password, does not authenticate or store credentials, and does not protect the agent pages. After clicking **Login**, the home page shows the four agent icons. Each icon opens its own URL: `/risk-prediction`, `/safe-routes`, `/emergency-sos`, or `/journey-tracker`. Use **Back to home** to return to the agent selector and **Logout** to return to `/login`.
 
-Voice detection uses browser speech recognition and requires microphone permission. It works only while the dashboard is open in a compatible browser (such as Chrome or Edge). Every finalized spoken utterance and every typed emergency analysis runs emergency triage; detected SOS messages automatically send an email to the trusted contact entered in the dashboard when Gmail SMTP is configured and that address is allowlisted. Non-SOS typed messages do not trigger automatic email. Use HTTPS or localhost for microphone access.
+Voice detection uses browser speech recognition and requires microphone permission. It works only while the dashboard is open in a compatible browser (such as Chrome or Edge). Every finalized spoken utterance and every typed emergency analysis runs emergency triage; detected SOS messages automatically send an email to the trusted contact entered in the dashboard when an email provider is configured and that address is allowlisted. Non-SOS typed messages do not trigger automatic email. Use HTTPS or localhost for microphone access.
 
-Automatic email uses Gmail SMTP from the backend only. Credentials belong in the ignored `backend/.env` file, never in frontend code or source control. The selected recipient must also be listed in `ALERT_ALLOWED_RECIPIENTS`. Each journey sends at most one automatic alert, on the first missed check-in or overdue arrival. Journey monitoring runs only while the dashboard remains open; it is not a guaranteed background monitoring service.
+Automatic email can use Brevo's HTTPS API or Gmail SMTP from the backend only. On Render Free, use Brevo's HTTPS API because Render blocks outbound SMTP ports. Credentials belong in the ignored `backend/.env` file or the hosting provider's environment settings, never in frontend code or source control. The selected recipient must also be listed in `ALERT_ALLOWED_RECIPIENTS`. Each journey sends at most one automatic alert, on the first missed check-in or overdue arrival. Journey monitoring runs only while the dashboard remains open; it is not a guaranteed background monitoring service.
 
 Live location uses browser geolocation and requires permission. Choose **Share my live location** to start GPS updates; the browser must use HTTPS or localhost. The latest coordinates are used for emergency triage and included in email alerts when available. The map uses OpenStreetMap tiles and needs an internet connection. Place suggestions use Photon, walking routes use Valhalla, and current weather uses Open-Meteo. These services provide map, place, route, and weather data—not crime-safety information. Service availability and map-data coverage can vary.
 
@@ -68,7 +68,7 @@ FastAPI backend
         |     +-- automatic email on first missed check-in or overdue arrival
         |
         +-- Alert Agent
-        |     +-- automatic Gmail SMTP email for typed/voice SOS and journey alerts
+        |     +-- Brevo HTTPS API or SMTP email for typed/voice SOS and journey alerts
         |     +-- user-reviewed email drafts for non-SOS typed alerts
         |     +-- SMTP credentials remain backend-only
         |
@@ -145,24 +145,30 @@ Copy-Item .env.example .env
 ```
 
 Edit `backend/.env` to configure Gemini, or leave the key empty to use fallback
-mode. To enable automatic email, configure a Gmail sender, an app password, and
-the allowed trusted-contact recipient(s):
+mode. To enable automatic email through Brevo's HTTPS API, create a Brevo API
+key and configure a verified sender, plus the allowed trusted-contact
+recipient(s):
 
 ```env
-SMTP_USERNAME=your-sender@gmail.com
-SMTP_APP_PASSWORD=your-new-google-app-password
+BREVO_API_KEY=your-brevo-api-key
+BREVO_SENDER_EMAIL=verified-sender@example.com
+BREVO_SENDER_NAME=SafeCity Agent
 ALERT_ALLOWED_RECIPIENTS=trusted.contact@example.com
 ```
 
-Create a new Google app password in your account security settings; revoke any
-app password that has been exposed. Add only trusted recipients to
-`ALERT_ALLOWED_RECIPIENTS` (comma-separated for multiple contacts), and enter
-an allowed address in the dashboard. The app-password value must stay in
-`backend/.env`, which is ignored by Git. Never paste it into chat, frontend
-code, or a committed file. Restart the backend after changing these settings.
-The dashboard shows whether SMTP is configured and whether the selected contact
-is allowed. Automatic delivery failures are shown in the dashboard and recorded
-in the alert log.
+Brevo's sender address must be verified in your Brevo account. Add only trusted
+recipients to `ALERT_ALLOWED_RECIPIENTS` (comma-separated for multiple
+contacts), and enter an allowed address in the dashboard. Keep the API key in
+`backend/.env`, which is ignored by Git, or your hosting provider's secret
+environment settings. Never paste it into chat, frontend code, or a committed
+file. On Render Free, add `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`,
+`BREVO_SENDER_NAME`, and `ALERT_ALLOWED_RECIPIENTS` to the backend service's
+environment settings; the Brevo API sends over HTTPS rather than blocked SMTP
+ports. For local development, Gmail SMTP remains available with
+`SMTP_USERNAME` and `SMTP_APP_PASSWORD`. When both providers are configured,
+Brevo is preferred. The dashboard shows whether email is configured and
+whether the selected contact is allowed. Automatic delivery failures are shown
+in the dashboard and recorded in the alert log.
 
 Non-SOS typed alerts remain drafts: review and send them from Gmail yourself.
 Detected SOS alerts from typed messages and voice, along with journey alerts,
@@ -298,7 +304,7 @@ Open **Emergency SOS** from the home page and enter a message such as:
 
 - Message: `Someone is following me. I need help.`
 
-Enter the trusted contact email configured in the backend allowlist. Click **Analyze emergency message**. To use voice instead, click **Start voice detection** and speak; each finalized utterance runs triage without pressing the analyze button. Detected SOS phrases trigger automatic email when SMTP is configured and the recipient is allowed. Non-SOS typed alerts can be prepared as Gmail drafts. Select **Share my live location** to attach current GPS coordinates.
+Enter the trusted contact email configured in the backend allowlist. Click **Analyze emergency message**. To use voice instead, click **Start voice detection** and speak; each finalized utterance runs triage without pressing the analyze button. Detected SOS phrases trigger automatic email when Brevo or SMTP is configured and the recipient is allowed. Non-SOS typed alerts can be prepared as Gmail drafts. Select **Share my live location** to attach current GPS coordinates.
 
 Other useful test messages are `I feel unsafe`, `There is an emergency`, and
 `I am waiting for my friend at the market`. The first three should indicate
@@ -308,7 +314,7 @@ possible distress; the last should normally produce a low-urgency result.
 
 The trusted contact email field can be changed to an address in
 `ALERT_ALLOWED_RECIPIENTS`. A detected SOS in a typed message or recognized
-voice transcript sends an automatic email when SMTP is configured. For a
+voice transcript sends an automatic email when Brevo or SMTP is configured. For a
 non-SOS typed message, after the emergency result appears, click **Prepare email
 draft**, then **Open Gmail draft** and send it yourself.
 
@@ -321,7 +327,7 @@ continue journey** to reset the timer. The first missed check-in or overdue
 arrival automatically emails the allowed trusted contact. **End journey** stops
 the tracker at any time.
 
-Automatic email requires Gmail SMTP configuration, and the contact must be
+Automatic email requires Brevo API or SMTP configuration, and the contact must be
 allowed in `ALERT_ALLOWED_RECIPIENTS`. Check-in timers run only while the
 dashboard stays open; they are not a background or guaranteed monitoring
 service. Automatic alerts go only to the trusted contact, not emergency
@@ -382,7 +388,7 @@ frontend/
 7. Return to the home page, open Safe Routes, search for a real starting area and destination, choose the place suggestions,
    and click **Find walking routes** to see pedestrian paths and directions.
 8. Return home and open Emergency SOS. Type `Someone is following me. I need help.` and click **Analyze emergency message**, or start voice detection and speak.
-9. Enter a trusted contact email from the backend allowlist. A detected SOS sends an automatic email if Gmail SMTP is configured. Non-SOS typed messages can be sent as a reviewed draft.
+9. Enter a trusted contact email from the backend allowlist. A detected SOS sends an automatic email if Brevo or SMTP is configured. Non-SOS typed messages can be sent as a reviewed draft.
 10. Return home and open Journey Tracker. Enter a destination, expected arrival, and check-in interval. Start the journey, then confirm safety at the check-in prompt; test the automatic alert by letting a check-in expire.
 11. Optionally start **Share my live location** in Emergency SOS and grant GPS permission to see your position on the map.
 
